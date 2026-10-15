@@ -1,5 +1,23 @@
 # investment
 
+## Company and ETF news-move research skill
+
+[company-etf-news-move-research](./.github/skills/company-etf-news-move-research/SKILL.md)
+is a reusable Copilot skill for checking recent news about a specified public
+company, stock, or ETF and assessing plausible price moves.
+
+In a skill-enabled Copilot chat, invoke `/company-etf-news-move-research` or ask:
+
+> Check all recent news for NVDA or QQQ and assess the possible moves over the
+> next one to four weeks. Include verified sources, bullish, base, and bearish
+> scenarios, probability estimates, catalysts, and invalidation signals.
+
+Optionally specify the security name or ticker, exchange, forecast horizon,
+market, or an as-of date. The skill verifies the security and current sources,
+distinguishes new information from priced-in context, and analyzes ETF holdings
+and exposure paths where relevant. It uses evidence-based scenarios rather than
+guaranteed predictions and does not provide personalized investment advice.
+
 ## Biotech drug and stock research skill
 
 [biotech-drug-stock-research](./.github/skills/biotech-drug-stock-research/SKILL.md)
