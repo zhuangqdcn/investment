@@ -58,9 +58,24 @@ changed, and resolved developments. Without one, it creates a first snapshot.
 Unavailable market data is disclosed rather than invented, and forecasts are
 conditional research rather than guaranteed returns or personalized advice.
 
-The skill refreshes research when invoked; it does not continuously monitor,
-save state, schedule runs, or send alerts on its own. Recurring monitoring
-requires a separately configured scheduler and data access.
+For folder reviews, the skill writes `.stock-review-completed.json` inside each
+successfully reviewed folder, recording `schema_version`, `skill`, `status`,
+and `finished_at` (the actual UTC completion timestamp). Later folder-review
+requests skip folders with valid completion markers and show their finished
+dates. Markers do not expire when files, news, or market conditions change.
+To override the skip, explicitly say:
+
+> Force review this folder even if it was already completed.
+
+A generic request to review a folder again does not override the marker.
+Each requested folder is checked independently; malformed or unreadable markers
+are reported and block that folder until explicitly repaired or replaced.
+Failed or unfinished reviews do not get completion markers.
+
+Direct ticker and watchlist-only requests still refresh research when invoked.
+The skill does not continuously monitor, store research reports, schedule runs,
+or send alerts on its own. Recurring monitoring requires a separately configured
+scheduler and data access.
 
 ## Biotech drug and stock research skill
 

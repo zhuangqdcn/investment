@@ -1,7 +1,7 @@
 ---
 name: stock-monitoring-research
-description: 'Monitor recent company developments and stock price movements, update a stock watchlist, and assess short-term and long-term outlooks. Use for stock monitoring, what changed since the last report, recent price and news moves, one-to-four-week forecasts, and six-to-twelve-month scenarios with current sources.'
-argument-hint: 'Companies or tickers; optional exchanges, previous report, news window, short-term horizon, long-term horizon, and as-of date'
+description: 'Monitor recent company developments and stock price movements, update a stock watchlist, and assess short-term and long-term outlooks. Use for stock monitoring, stock folder reviews, what changed since the last report, recent price and news moves, one-to-four-week forecasts, and six-to-twelve-month scenarios with current sources. Record completed folder reviews in JSON and skip them unless explicitly overridden.'
+argument-hint: 'Companies, tickers, or folders; optional exchanges, previous report, news window, forecast horizons, as-of date, or explicit force-review instruction'
 ---
 
 # Stock Monitoring Research
@@ -12,8 +12,9 @@ Separate measured historical movements from uncertain future scenarios.
 
 ## Scope
 
-- Run a fresh research snapshot on each invocation. This skill does not run in
-  the background, schedule checks, retain state automatically, or send alerts.
+- Run a fresh research snapshot for each non-skipped review. For folder reviews,
+  persist only the completion marker described below. This skill does not run
+  in the background, schedule checks, retain reports automatically, or send alerts.
   Recurring monitoring requires a separately configured scheduler and data
   access; never claim either is active without verification.
 - Accept a company, ticker, or watchlist. Use tickers supplied in the request or
@@ -24,10 +25,41 @@ Separate measured historical movements from uncertain future scenarios.
   short-term outlook, and 6-12 months for the long-term outlook.
 - Honor requested windows and state their exact dates. Report in the user's
   language. This is investment research, not personalized investment advice.
-- Return the report in chat. Do not modify the workspace, save watchlists or
-  report files, or configure automation unless explicitly requested.
+- Return the report in chat. A folder-review request authorizes writing its
+  completion marker only; do not otherwise modify the workspace, save watchlists
+  or report files, or configure automation unless explicitly requested.
 
 ## Workflow
+
+### 0. Check folder completion before reviewing
+
+Apply this gate only when the user requests a folder review, including a batch
+of folders. A direct ticker or watchlist-only request continues to run normally.
+
+- Resolve each requested folder to its actual filesystem location. Check for
+  `.stock-review-completed.json` directly inside that folder before reading its
+  research inputs or fetching news and prices. Do not create a missing target
+  folder just to hold a marker.
+- A valid marker is a JSON object with `schema_version` equal to `1`, `skill`
+  equal to `stock-monitoring-research`, `status` equal to `completed`, and
+  `finished_at` containing a real ISO 8601 UTC timestamp ending in `Z`.
+- If a valid marker exists, skip that folder and report its path and finished
+  date. Do not refresh its research, rewrite its marker, or present an old
+  assessment as current. Markers do not expire automatically: elapsed time,
+  changed contents, or new market news do not authorize another review.
+- Override the skip only for an explicit instruction such as "force review this
+  folder", "ignore the completion marker", or "re-review even if completed".
+  A generic request to "review this folder again" is not an override. Apply an
+  override only to the folders named or clearly included by that instruction.
+- Each marker covers its containing folder, not unrelated folders, ancestors,
+  or separately requested child folders. In a batch, check each target
+  independently and continue with unmarked or explicitly overridden folders.
+- If the marker is unreadable, malformed, or has unsupported fields/values,
+  report the problem and leave that folder blocked. Do not silently treat it
+  as absent or completed, or overwrite it. Resume only with an explicit
+  instruction to repair or replace the invalid marker.
+- If every target is skipped or blocked, return a status summary without
+  performing research or generating new completion markers.
 
 ### 1. Establish the monitoring baseline
 
@@ -125,12 +157,44 @@ Separate measured historical movements from uncertain future scenarios.
 - Do not make guaranteed predictions or personalized buy/sell, leverage, or
   position-sizing recommendations.
 
+### 6. Record a successfully completed folder review
+
+After finishing all requested review work for a folder, preparing its report,
+and passing the research checks in Completion Check, write
+`.stock-review-completed.json` directly inside that folder. Use this shape:
+
+```json
+{
+  "schema_version": 1,
+  "skill": "stock-monitoring-research",
+  "status": "completed",
+  "finished_at": "2026-10-15T04:28:01Z"
+}
+```
+
+- The timestamp above is an example. Set `finished_at` to the actual completion
+  time in UTC, not the review's historical as-of date or its start time.
+- Do not write a completed marker for failed, interrupted, blocked, skipped,
+  or unfinished reviews. Finish and mark each folder independently; completion
+  of one folder does not imply completion of the whole batch.
+- During an explicitly authorized re-review, retain the previous marker until
+  the new review succeeds, then replace it with the new completion timestamp.
+  If the re-review fails, leave the previous marker unchanged.
+- Verify that the saved file parses as JSON and contains the intended fields
+  and timestamp. If writing or verification fails, explicitly report that the
+  review was performed but completion was not successfully recorded; do not
+  claim persistence or silently ignore the error.
+- Include the marker path and finished date in the response. Do not create
+  markers merely while editing this skill or retroactively mark folders from
+  an earlier chat unless the user explicitly requests it.
+
 ## Report Format
 
 Keep the summary concise; use per-company detail to support the conclusions.
 
 1. **As-of and coverage:** timestamps, watchlist identities, windows, baseline
-   status, source freshness, and missing-data limitations.
+   status, source freshness, and missing-data limitations. For folder requests,
+   list reviewed, skipped (with finished dates), and blocked folders separately.
 2. **Watchlist summary:**
 
    | Company / ticker / exchange | Latest verified price and timestamp | Last session / 5 sessions / 1 month | Benchmark-relative move | Key new development | Short-term outlook | Long-term outlook | Evidence confidence |
@@ -153,11 +217,16 @@ Keep the summary concise; use per-company detail to support the conclusions.
 
 ## Completion Check
 
-- Every requested company is covered or explicitly listed as unresolved.
+- The folder gate was checked before research; skipped folders were not reviewed.
+- Every requested company in a non-skipped, non-blocked review is covered or
+  explicitly listed as unresolved.
 - Historical moves have verified dates, timestamps, currency, and return basis.
 - Both horizons have distinct base, bullish, and bearish scenarios.
 - Baseline changes are supported, or the report clearly says first snapshot.
 - Material claims have dated sources; unavailable data is explicitly disclosed.
 - Facts and forecasts are distinct, uncertainty is visible, and no autonomous
-  monitoring, persistent state, delivered alerts, or guaranteed returns are
+  monitoring, stored reports, delivered alerts, or guaranteed returns are
   falsely claimed.
+- After a successful folder review, its completion JSON was written and
+  verified, or a persistence failure was explicitly reported. Skipped and
+  unfinished folders did not receive new completion timestamps.
